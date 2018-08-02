@@ -1,9 +1,14 @@
 #include "rpc-socket-transport.h"
+#include "rpc-pipe-transport.h"
 #include "rpc-client.h"
 
 namespace rpc {
   Client::Client(const std::string& server) {
+#if defined(_WIN32)
+    client_ = std::make_shared<rpc::PipeClientTransport>(server);
+#else
     client_ = std::make_shared<rpc::SocketClientTransport>(server);
+#endif
   }
 
   int Client::CreatePlayer(const std::string& name, int money) {

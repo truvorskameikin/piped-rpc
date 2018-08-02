@@ -1,5 +1,6 @@
 #include <thread>
 #include "rpc-socket-transport.h"
+#include "rpc-pipe-transport.h"
 #include "rpc-server.h"
 
 namespace rpc {
@@ -71,7 +72,11 @@ namespace rpc {
 
   Server::Server() {
     state_ = std::make_shared<State>();
+#if defined(_WIN32)
+    state_->server = std::make_shared<rpc::PipeServer>();
+#else
     state_->server = std::make_shared<rpc::SocketServer>();
+#endif
 
     std::thread server_thread(acceptFunc, state_);
     server_thread.detach();

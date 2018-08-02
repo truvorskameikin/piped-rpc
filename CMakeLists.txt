@@ -5,11 +5,13 @@ set(CMAKE_CXX_STANDARD 14)
 set(LIB_SOURCES
 	rpc-protocol.cpp
 	rpc-socket-transport.cpp
+	rpc-pipe-transport.cpp
 	rpc-client.cpp
 	rpc-server.cpp)
 set(LIB_HEADERS
 	rpc-protocol.h
 	rpc-socket-transport.h
+	rpc-pipe-transport.h
 	rpc-client.h
 	rpc-server.h)
 
