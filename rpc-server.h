@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <thread>
+#include <mutex>
 #include "rpc-protocol.h"
 
 namespace rpc {

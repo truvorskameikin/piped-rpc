@@ -1,3 +1,4 @@
+#include <thread>
 #include "rpc-socket-transport.h"
 #include "rpc-server.h"
 
@@ -24,7 +25,7 @@ namespace rpc {
       int32_t money = 0;
       if (request.args().size() > 0) {
         int32_t player_id = request.args()[0].int32_value();
-        if (player_id >= 0 && player_id < players.size()) {
+        if (player_id >= 0 && player_id < (int) players.size()) {
           money = players[player_id].money;
 
           if (request.args().size() > 1) {
@@ -42,7 +43,7 @@ namespace rpc {
       int32_t money = -1;
       if (request.args().size() > 0) {
         int32_t player_id = request.args()[0].int32_value();
-        if (player_id >= 0 && player_id < players.size())
+        if (player_id >= 0 && player_id < (int) players.size())
           money = players[player_id].money;
       }
 

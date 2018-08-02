@@ -123,6 +123,8 @@ namespace rpc {
       rpc_protocol::Response MakeRequest(const rpc_protocol::Request& request) {
         rpc_protocol::Response result;
 
+        socketroutines::InitSockets();
+
         struct addrinfo* addr_result;
         struct addrinfo addr_hints;
 
@@ -162,16 +164,16 @@ namespace rpc {
 
         if (!wire.empty()) {
           int32_t request_size = wire.size();
-          send(sock, &request_size, sizeof(int32_t), 0);
-          send(sock, &wire[0], wire.size(), 0);
+          send(sock, (const char*) &request_size, sizeof(int32_t), 0);
+          send(sock, (const char*) &wire[0], wire.size(), 0);
 
           int32_t response_size = 0;
-          recv(sock, &response_size, sizeof(int32_t), 0);
+          recv(sock, (char *) &response_size, sizeof(int32_t), 0);
 
           if (response_size > 0) {
             std::vector<char> response_buffer(response_size);
 
-            recv(sock, &response_buffer[0], response_buffer.size(), 0);
+            recv(sock, (char *) &response_buffer[0], response_buffer.size(), 0);
             result.Read(&response_buffer[0], response_buffer.size());
           }
         }
@@ -187,23 +189,19 @@ namespace rpc {
 
     class SocketServerTransportImpl : public rpc_protocol::ServerTransport {
      public:
-      SocketServerTransportImpl(socketroutines::SocketType sock) : sock_(sock) {
-      }
-
-      ~SocketServerTransportImpl() {
-        socketroutines::CloseSocket(sock_);
+      SocketServerTransportImpl(socketroutines::SocketType sock) : sock_guard_(sock) {
       }
 
       rpc_protocol::Request Receive() {
         rpc_protocol::Request result;
 
         int32_t request_size = 0;
-        recv(sock_, &request_size, sizeof(int32_t), 0);
+        recv(sock_guard_.socket(), (char *) &request_size, sizeof(int32_t), 0);
 
         if (request_size > 0) {
           std::vector<char> request_buffer(request_size);
 
-          recv(sock_, &request_buffer[0], request_buffer.size(), 0);
+          recv(sock_guard_.socket(), (char *) &request_buffer[0], request_buffer.size(), 0);
           result.Read(&request_buffer[0], request_buffer.size());
         }
 
@@ -215,28 +213,43 @@ namespace rpc {
         response.Store(wire);
 
         int32_t response_size = wire.size();
-        send(sock_, &response_size, sizeof(int32_t), 0);
+        send(sock_guard_.socket(), (const char*) &response_size, sizeof(int32_t), 0);
 
         if (!wire.empty())
-          send(sock_, &wire[0], wire.size(), 0);
+          send(sock_guard_.socket(), (const char*) &wire[0], wire.size(), 0);
       }
 
      private:
-      socketroutines::SocketType sock_;
+      socketroutines::SocketGuard sock_guard_;
     };
 
     class SocketServerImpl : public rpc_protocol::Server {
      public:
-      SocketServerImpl() : sock_guard_(socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) {
+      SocketServerImpl() {
+        socketroutines::InitSockets();
+
+        sock_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
         uint32_t addr = htonl(INADDR_ANY);
 
+        struct hostent* he = gethostbyname("localhost");
+        if (he) {
+          struct in_addr** addr_list = (struct in_addr **) he->h_addr_list;
+          for (int i = 0; ; ++i) {
+            if (addr_list[i]) {
+              addr = addr_list[i]->s_addr;
+              break;
+            }
+          }
+        }
+
         int reuseaddr = 1;
-        setsockopt(sock_guard_.socket(), SOL_SOCKET, SO_REUSEADDR, (const char *) &reuseaddr, sizeof(int));
+        setsockopt(sock_, SOL_SOCKET, SO_REUSEADDR, (const char *) &reuseaddr, sizeof(int));
 
   #if defined(__APPLE__)
         {
           int nosigpipe = 1;
-          setsockopt(sock_guard_.socket(), SOL_SOCKET, SO_NOSIGPIPE, (const char *) &nosigpipe, sizeof(int));
+          setsockopt(sock_, SOL_SOCKET, SO_NOSIGPIPE, (const char *) &nosigpipe, sizeof(int));
         }
   #endif
 
@@ -246,24 +259,33 @@ namespace rpc {
         sock_addr.sin_port = htons(12345);
         sock_addr.sin_addr.s_addr = addr;
 
-        bind(sock_guard_.socket(), (sockaddr*) &sock_addr, sizeof(sockaddr_in));
+        if (bind(sock_, (sockaddr*) &sock_addr, sizeof(sockaddr_in)) != 0)
+          return;
 
-        listen(sock_guard_.socket(), 128);
+        listen(sock_, 128);
+      }
+
+      ~SocketServerImpl() {
+        if (sock_ != socketroutines::kInvalidSocket)
+          socketroutines::CloseSocket(sock_);
       }
 
       std::shared_ptr<rpc_protocol::ServerTransport> Accept() {
         socketroutines::AddressLenType size = sizeof(sockaddr_in);
         sockaddr_in sock_addr;
 
-        socketroutines::SocketType client_sock = accept(sock_guard_.socket(), (struct sockaddr*) &sock_addr, &size);
-        if (client_sock == socketroutines::kInvalidSocket)
-          return nullptr;
+        socketroutines::SocketType client_sock = socketroutines::kInvalidSocket;
+        while (true) {
+          client_sock = accept(sock_, (struct sockaddr*) &sock_addr, &size);
+          if (client_sock != socketroutines::kInvalidSocket)
+            break;
+        }
 
         return std::make_shared<SocketServerTransportImpl>(client_sock);
       }
 
      private:
-      socketroutines::SocketGuard sock_guard_;
+      socketroutines::SocketType sock_;
     };
   }
 
@@ -272,6 +294,6 @@ namespace rpc {
   }
 
   SocketServer::SocketServer()
-      : impl_(std::make_unique<detail::SocketServerImpl>())  {
+      : impl_(std::make_unique<detail::SocketServerImpl>()) {
   }
 }
