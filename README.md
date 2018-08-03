@@ -45,7 +45,7 @@ All executable are built with CMake. Just `cmake .. && make` on macOS, `cmake ..
 
 ## Known problems
 
-This task was finished in 7 hours and has problems. First you will notice that there is no error handling in processing user input in client interactive mode. Then you can't choose the name of pipe, binding address, server addrees, port number when starting this applications. I thought that I can use `const std::string& server` variable to do this, but have not implemented it. The protocol can support translating from wire endianness to machines endianness. The envelop class/struct can be implemented to avoid sending payload size in transport implementation.
+This task was finished in 7 hours and has problems. First you will notice that there is no error handling in processing user input in client interactive mode. Then you can't choose the name of pipe, binding address, server addrees, port number when starting these applications. I thought that I can use `const std::string& server` variable to do this, but have not implemented it. The protocol can support translating from wire endianness to machines endianness. The envelop class/struct can be implemented to avoid sending payload size in transport implementation.
 
 ## Builds for Windows with socket transport (Visual Studio 2017):
 
